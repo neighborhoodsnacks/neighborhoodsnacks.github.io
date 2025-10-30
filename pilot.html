@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Neighborhood Snacks — Pilot Seller Signup</title>
+
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@600;700&family=Lato&display=swap" rel="stylesheet">
+
+<!-- Mint pastel donut favicon -->
+<link rel="icon" type="image/svg+xml" href='data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128"%3E%3Cdefs%3E%3CradialGradient id="g" cx="50%25" cy="40%25" r="50%25"%3E%3Cstop offset="0%25" stop-color="%23fffbe8"/%3E%3Cstop offset="50%25" stop-color="%23ffd7ef"/%3E%3Cstop offset="100%25" stop-color="%23ffbcbc"/%3E%3C/radialGradient%3E%3C/defs%3E%3Ccircle cx="64" cy="64" r="52" fill="url(%23g)"/%3E%3Ccircle cx="64" cy="64" r="20" fill="%23fff"/%3E%3C/svg%3E' />
+
+<style>
+body{
+  margin:0; font-family:Lato,sans-serif; color:#333;
+  background:linear-gradient(180deg,#FFECEC,#FFF8E7);
+  animation:bg 10s ease-in-out infinite;
+}
+@keyframes bg{
+  0%{background-position:0% 0%}
+  50%{background-position:0% 100%}
+  100%{background-position:0% 0%}
+}
+header{
+  padding:18px 0;
+  text-align:center;
+}
+h1{font-family:Poppins,sans-serif;font-size:24px;margin:0}
+.tagline{font-size:14px;color:#666;margin-top:4px}
+.container{width:min(480px,92%);margin:0 auto}
+
+.card{
+  background:white; padding:28px;
+  margin-top:24px; border-radius:24px;
+  box-shadow:0 8px 18px rgba(0,0,0,.08);
+  border:2px solid #ffdfe9;
+}
+.card h2{font-family:Poppins;font-size:22px;margin:0 0 10px}
+.card p{font-size:14px;color:#444}
+
+input, label{
+  width:100%; font-size:16px; margin-bottom:12px;
+}
+input{
+  padding:12px; border-radius:12px;
+  border:2px solid #ffd8ea; background:#fff;
+}
+input:focus{outline:none;border-color:#ff7bbf}
+button{
+  width:100%; padding:14px; font-size:18px;
+  border:none; border-radius:18px; cursor:pointer;
+  font-weight:700; background:#ff77c2; color:white;
+  box-shadow:0 4px 12px rgba(0,0,0,.12);
+}
+button:hover{background:#ff5cb6}
+#success{
+  display:none; margin-top:12px; padding:12px;
+  background:#e8ffe9; border:2px solid #8aff8a;
+  border-radius:18px; text-align:center; color:#00703c;
+}
+
+.nav-bottom{
+ margin-top:20px; display:flex; justify-content:center; gap:8px;
+}
+.nav-bottom a{
+ padding:12px 18px; background:#fff; border-radius:16px;
+ font-weight:700; color:#333; text-decoration:none;
+ border:2px solid #ffdce8;
+}
+.nav-bottom a:hover{background:#ffeff8}
+</style>
+</head>
+
+<body>
+
+<header>
+ <h1>Neighborhood Snacks</h1>
+ <div class="tagline">Become a Founding Snack Seller 🍪✨</div>
+</header>
+
+<div class="container">
+ <div class="card">
+   <h2>Early Seller Registration</h2>
+   <p>Founding sellers receive a <strong>$0.05 processing fee</strong> until platform launch 🎉</p>
+
+   <form id="pilotForm">
+     <label>Full Name</label>
+     <input name="name" required>
+
+     <label>Phone Number</label>
+     <input name="phone" required>
+
+     <label>Neighborhood / City</label>
+     <input name="neighborhood" required>
+
+     <label>Email (optional)</label>
+     <input type="email" name="email">
+
+     <label style="display:flex;align-items:center;font-size:13px">
+       <input type="checkbox" name="agree" required style="width:auto;margin-right:10px">
+       I understand this is not a job offer or employment.
+     </label>
+
+     <button type="submit">Submit</button>
+   </form>
+
+   <div id="success">✅ Thank you! We'll contact you soon.</div>
+
+   <p style="font-size:12px;margin-top:12px;color:#666">
+     This form collects interest for a voluntary pilot.
+     Submitting does not guarantee participation or compensation.
+   </p>
+
+   <div class="nav-bottom">
+     <a href="index.html">← Back to Business Plan</a>
+     <a href="index.html">Home</a>
+   </div>
+ </div>
+</div>
+
+<script>
+// ✅ TODO: Add your Google Apps Script URL here
+const SCRIPT_URL = "https://script.google.com/macros/s/PASTE-URL-HERE/exec";
+
+document.getElementById("pilotForm").addEventListener("submit", async (e)=>{
+ e.preventDefault();
+
+ const data = Object.fromEntries(new FormData(e.target));
+
+ await fetch(SCRIPT_URL, {
+   method:"POST",
+   body:JSON.stringify(data)
+ });
+
+ document.getElementById("success").style.display="block";
+ e.target.reset();
+});
+</script>
+
+</body>
+</html>
