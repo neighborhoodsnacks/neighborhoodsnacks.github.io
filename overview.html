@@ -406,7 +406,100 @@
       </section>
     </div>
   </main>
+<!-- =========================
+ EMBEDDED TIMELINE + KANBAN
+========================= -->
+<section class="container" style="margin-top:60px;margin-bottom:120px;">
 
+  <!-- TIMELINE CARD -->
+  <div style="
+    background:rgba(18,25,27,.85);
+    border:1px solid rgba(153,226,209,.2);
+    border-radius:18px;
+    padding:28px;
+    box-shadow:0 8px 30px rgba(0,0,0,.35);
+    margin-bottom:40px;">
+    
+    <h2 style="font-family:Poppins;font-size:26px;color:var(--mint);margin-top:0;">
+      🗓 Feature Development Timeline
+    </h2>
+
+    <ul style="line-height:1.6;color:var(--mint-soft);padding-left:16px;">
+      <li><strong style="color:var(--mint)">Phase 1 (M1-M2):</strong> Landing funnel, pilot signups, geo waitlist, UI foundation, Sheets logging</li>
+      <li><strong style="color:var(--mint)">Phase 2 (M3-M4):</strong> Seller dashboard, menu tools, inventory, Stripe, order history, analytics</li>
+      <li><strong style="color:var(--mint)">Phase 3 (M5-M6):</strong> Buyer experience, order tracking, delivery modes, reviews, PWA</li>
+      <li><strong style="color:var(--mint)">Phase 4 (M7-M8):</strong> Growth dashboard, ref codes, neighborhood heatmap</li>
+      <li><strong style="color:var(--mint)">Phase 5 (M9-M12):</strong> Scaling, moderation, multi-region launch</li>
+    </ul>
+  </div>
+
+
+  <!-- KANBAN EMBED -->
+  <div style="
+    background:rgba(18,25,27,.85);
+    border:1px solid rgba(153,226,209,.2);
+    border-radius:18px;
+    padding:28px;
+    box-shadow:0 8px 30px rgba(0,0,0,.35);">
+
+    <h2 style="font-family:Poppins;font-size:26px;color:var(--mint);margin-top:0;margin-bottom:18px;">
+      🧠 Development Kanban Overview
+    </h2>
+
+    <p style="color:var(--muted);font-size:14px;margin-bottom:16px;">
+      High-level development tasks across the buyer, seller, and operator systems.
+      <br>
+      <a href="kanban.html" style="color:var(--mint-soft);text-decoration:underline;">
+        → Open full Kanban board
+      </a>
+    </p>
+
+    <div style="display:flex;gap:14px;overflow-x:auto;padding-bottom:4px;">
+
+      <!-- Backlog -->
+      <div style="min-width:180px;">
+        <h3 style="color:var(--mint-soft);font-size:15px;font-family:Poppins;">📥 Backlog</h3>
+        <div style="font-size:13px;color:var(--ink-dim);">
+          Buyer journey map<br>
+          Seller onboarding<br>
+          Safety & rules engine
+        </div>
+      </div>
+
+      <!-- To Build -->
+      <div style="min-width:180px;">
+        <h3 style="color:var(--mint-soft);font-size:15px;font-family:Poppins;">🛠 To Build</h3>
+        <div style="font-size:13px;color:var(--ink-dim);">
+          Menu editor<br>
+          Order status system<br>
+          Neighborhood heatmap
+        </div>
+      </div>
+
+      <!-- In Progress -->
+      <div style="min-width:180px;">
+        <h3 style="color:var(--mint-soft);font-size:15px;font-family:Poppins;">⚙️ In Progress</h3>
+        <div style="font-size:13px;color:var(--ink-dim);">
+          Seller dashboard UI<br>
+          Stripe Connect<br>
+          Growth analytics
+        </div>
+      </div>
+
+      <!-- Done -->
+      <div style="min-width:180px;">
+        <h3 style="color:var(--mint-soft);font-size:15px;font-family:Poppins;">✅ Done</h3>
+        <div style="font-size:13px;color:var(--ink-dim);">
+          Landing funnel<br>
+          Geo waitlist<br>
+          Pilot signup system
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+</section>
   <!-- Footer -->
   <footer class="container" style="margin:34px 0 56px">
     <div style="background:linear-gradient(180deg, rgba(25,32,36,.8), rgba(20,26,29,.8)); border:1px solid rgba(153,226,209,.18); border-radius:var(--radius); padding:20px; box-shadow:var(--shadow); text-align:center">
