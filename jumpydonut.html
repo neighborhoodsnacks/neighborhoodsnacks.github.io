@@ -1,0 +1,428 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+<title>Flappy Donut — 1 or 2 Player</title>
+<style>
+:root{
+  --bg1:#f6f9ff; --bg2:#dff5ff; --text:#26334d; --border:#d3e2ff;
+  --accent:#4c88ff; --accent2:#6aa7ff;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{
+  margin:0;height:100%;width:100%;position:fixed;overflow:hidden;
+  font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial;
+  color:var(--text);background:linear-gradient(var(--bg1),var(--bg2));
+  touch-action:none;
+}
+
+/* Canvas fills actual viewport; sized in JS for iOS */
+#game{position:fixed; inset:0; display:block; background:transparent;}
+
+/* Score HUD */
+#score{position:fixed; top:14px; right:16px; z-index:4; font-size:28px; font-weight:900}
+
+/* Start / Restart overlay */
+#start{
+  position:fixed; inset:0; z-index:10; display:flex; align-items:center; justify-content:center;
+  background:rgba(255,255,255,.4); backdrop-filter:blur(8px)
+}
+.card{
+  background:rgba(255,255,255,.92); border:1px solid var(--border); border-radius:14px; box-shadow:0 8px 24px rgba(0,0,0,.12);
+  padding:18px; width:min(92vw,380px); text-align:center
+}
+h1{margin:0 0 8px 0; font-size:18px}
+.actions{display:flex; gap:8px; flex-wrap:wrap; justify-content:center; margin-top:12px}
+.btn{appearance:none;border:0;border-radius:10px;padding:12px 14px;font-weight:800;cursor:pointer}
+.btn.primary{background:linear-gradient(180deg,var(--accent2),var(--accent)); color:#fff; box-shadow:0 8px 18px rgba(76,136,255,.25)}
+.btn.secondary{background:#eef4ff; border:1px solid var(--border); color:#2c3b58}
+.small{font-size:12px; opacity:.85}
+
+/* 2P panel */
+#p2pPanel{display:none; margin-top:10px; text-align:left}
+textarea{width:100%; min-height:120px; border:1px solid var(--border); border-radius:10px; padding:8px; font-family:ui-monospace,Menlo,Consolas,monospace; background:#fbfdff}
+
+/* iOS install tip */
+#iosTip{display:none; margin-top:10px; font-size:12px; opacity:.9}
+</style>
+</head>
+<body>
+
+<canvas id="game"></canvas>
+<div id="score">0</div>
+
+<!-- Start/Restart overlay -->
+<div id="start" role="dialog" aria-modal="true">
+  <div class="card">
+    <h1>Flappy Donut — 1 or 2 Player</h1>
+    <div class="small">Tap to flap · iOS fullscreen · Optional P2P 2-player</div>
+    <div class="actions">
+      <button class="btn primary" id="btnStart">Start Game</button>
+      <button class="btn secondary" id="btnInstall" title="Install / Add to Home Screen">Add to Desktop</button>
+      <button class="btn secondary" id="btn2P">2 Player</button>
+    </div>
+    <div id="p2pPanel">
+      <div class="small" style="margin:8px 0 6px">No server needed. Copy/paste the SDP between two devices.</div>
+      <div class="actions">
+        <button class="btn secondary" id="host">Host (Create Offer)</button>
+        <button class="btn secondary" id="join">Join (Paste Offer)</button>
+      </div>
+      <textarea id="sdpBox" placeholder="Offer/Answer JSON appears here. Paste remote SDP then click Set Remote."></textarea>
+      <div class="actions">
+        <button class="btn secondary" id="setRemote">Set Remote</button>
+        <button class="btn secondary" id="copyLocal">Copy My SDP</button>
+      </div>
+      <div class="small">Peer: <span id="peerState">disconnected</span> · Channel: <span id="dcState">closed</span></div>
+    </div>
+    <div id="iosTip">iOS: Share ▶︎ <b>Add to Home Screen</b> to install.</div>
+  </div>
+</div>
+
+<script>
+(() => {
+  /* ---------- Canvas sizing (iOS-proof) ---------- */
+  const canvas = document.getElementById('game');
+  const ctx = canvas.getContext('2d');
+
+  let W=0,H=0,DPR=1;
+  function resize(){
+    DPR = window.devicePixelRatio || 1;
+    let w = window.innerWidth, h = window.innerHeight;
+    if (window.visualViewport){ w = window.visualViewport.width; h = window.visualViewport.height; }
+    canvas.width = Math.floor(w * DPR);
+    canvas.height = Math.floor(h * DPR);
+    canvas.style.width = w + 'px';
+    canvas.style.height = h + 'px';
+    ctx.setTransform(DPR,0,0,DPR,0,0);
+    W = w; H = h;
+    DONUT.r = Math.max(16, Math.min(W,H) * 0.04); // smaller donut
+  }
+  const vvp = window.visualViewport;
+  resize();
+  addEventListener('resize', resize);
+  if (vvp){ vvp.addEventListener('resize', resize); vvp.addEventListener('scroll', resize); }
+
+  /* ---------- Game state ---------- */
+  const scoreEl = document.getElementById('score');
+  const startOverlay = document.getElementById('start');
+  const btnStart = document.getElementById('btnStart');
+  let score = 0, playing = false, last = 0;
+
+  // Slightly bigger tunnel gaps
+  const GRAV = 0.45, FLAP = -7.8, GAP = 200, PIPE_W = 80, SPEED = 3.0;
+
+  const DONUT = { x: 0, y: 0, vy: 0, r: 24, rot: 0 };
+  const PIPES = [];
+  let particles = [];
+
+  /* ---------- Realistic glazed donut ---------- */
+  function drawDonutRealistic(d = DONUT){
+    ctx.save(); ctx.translate(d.x, d.y); ctx.rotate(d.rot);
+
+    // Base dough (golden-brown)
+    const dough = ctx.createRadialGradient(-d.r*0.25, -d.r*0.3, d.r*0.1, 0,0, d.r);
+    dough.addColorStop(0, '#f3c686');
+    dough.addColorStop(1, '#d9a25e');
+    ctx.fillStyle = dough;
+    ctx.beginPath(); ctx.arc(0,0,d.r,0,Math.PI*2); ctx.fill();
+
+    // Glaze highlight
+    const glaze = ctx.createLinearGradient(0,-d.r,0,d.r*0.2);
+    glaze.addColorStop(0, 'rgba(255,255,255,0.85)');
+    glaze.addColorStop(1, 'rgba(255,255,255,0.0)');
+    ctx.fillStyle = glaze;
+    ctx.beginPath(); ctx.arc(0,-d.r*0.25,d.r*0.9,0,Math.PI*2); ctx.fill();
+
+    // Hole
+    ctx.globalCompositeOperation='destination-out';
+    ctx.beginPath(); ctx.arc(0,0,d.r*0.42,0,Math.PI*2); ctx.fill();
+    ctx.globalCompositeOperation='source-over';
+
+    // Subtle edge
+    ctx.strokeStyle = 'rgba(0,0,0,0.08)';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.arc(0,0,d.r,0,Math.PI*2); ctx.stroke();
+
+    ctx.restore();
+  }
+
+  /* ---------- Background tech grid ---------- */
+  function drawGrid(){
+    ctx.save();
+    ctx.lineWidth = 1;
+    ctx.strokeStyle = 'rgba(100,140,255,0.12)';
+    const step = 40;
+    for(let x=(performance.now()/60)%step; x<W; x+=step){
+      ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,H); ctx.stroke();
+    }
+    for(let y=(performance.now()/90)%step; y<H; y+=step){
+      ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(W,y); ctx.stroke();
+    }
+    ctx.strokeStyle='rgba(76,136,255,0.28)';
+    ctx.strokeRect(6,6,W-12,H-12);
+    ctx.restore();
+  }
+
+  /* ---------- Particles (crumb sparkles) ---------- */
+  function spawnCrumbs(x,y){
+    for(let i=0;i<8;i++){
+      particles.push({x,y,vx:(Math.random()*2-1)*1.5,vy:(Math.random()*2-1)*1.2,life:350+Math.random()*200,born:performance.now()});
+    }
+  }
+  function updateParticles(dt){
+    const t=performance.now();
+    particles = particles.filter(p=> t-p.born < p.life);
+    const k = dt/16.67;
+    particles.forEach(p=>{ p.x+=p.vx*k; p.y+=p.vy*k; p.vy+=0.03*k; });
+  }
+  function drawParticles(){
+    const t=performance.now();
+    particles.forEach(p=>{
+      const a = 1 - (t-p.born)/p.life;
+      ctx.fillStyle = `rgba(243,198,134,${0.8*a})`;
+      ctx.beginPath(); ctx.arc(p.x,p.y,1.8,0,7); ctx.fill();
+    });
+  }
+
+  /* ---------- Pipes ---------- */
+  function spawnPipe(){
+    const top = 80 + Math.random() * (H - (GAP + 160)); // keep margin top/bottom
+    PIPES.push({x:W, top, bot: top + GAP, pass:false});
+  }
+
+  /* ---------- Game flow ---------- */
+  function startGame(){
+    // Reset all state cleanly (fixes "can't start again")
+    DONUT.x = W * 0.25;
+    DONUT.y = H / 2;
+    DONUT.vy = 0;
+    DONUT.rot = 0;
+
+    PIPES.length = 0;
+    particles.length = 0;
+
+    score = 0;
+    scoreEl.textContent = "0";
+
+    playing = true;
+    hideStart();
+  }
+
+  function flap(){ if(!playing) return; DONUT.vy = FLAP; DONUT.rot = -0.28; spawnCrumbs(DONUT.x, DONUT.y); sendState(); }
+
+  function update(dt){
+    if(!playing) return;
+    const k = dt/16.67;
+
+    DONUT.vy += GRAV * k;
+    DONUT.y  += DONUT.vy * k;
+    DONUT.rot += (DONUT.vy>0 ? 0.02 : 0.03) * k;
+    DONUT.rot = Math.max(-0.5, Math.min(0.6, DONUT.rot));
+
+    PIPES.forEach(p=> p.x -= SPEED*k);
+    while(PIPES.length && PIPES[0].x < -PIPE_W) PIPES.shift();
+    if(!PIPES.length || PIPES[PIPES.length-1].x < W * 0.6) spawnPipe();
+
+    for(const p of PIPES){
+      if(!p.pass && p.x + PIPE_W < DONUT.x){ p.pass = true; score++; scoreEl.textContent = String(score); }
+      const hitX = DONUT.x + DONUT.r > p.x && DONUT.x - DONUT.r < p.x + PIPE_W;
+      const hitY = DONUT.y - DONUT.r < p.top || DONUT.y + DONUT.r > p.bot;
+      if(hitX && hitY) return gameOver();
+    }
+    if(DONUT.y + DONUT.r > H || DONUT.y - DONUT.r < 0) return gameOver();
+
+    updateParticles(dt);
+  }
+
+  function draw(){
+    ctx.clearRect(0,0,W,H);
+    drawGrid();
+
+    // pipes
+    ctx.fillStyle = '#aac4ff';
+    PIPES.forEach(p=>{
+      ctx.fillRect(p.x, 0, PIPE_W, p.top);
+      ctx.fillRect(p.x, p.bot, PIPE_W, H - p.bot);
+    });
+
+    drawParticles();
+    drawDonutRealistic(DONUT);
+    drawGhost();
+  }
+
+  function loop(t){
+    const dt = (t - last) || 16; last = t;
+    update(dt);
+    draw();
+    requestAnimationFrame(loop);
+  }
+
+  function gameOver(){
+    playing = false;
+    showStart(`Restart — Score ${score}`);
+  }
+
+  /* ---------- UI ---------- */
+  const start = document.getElementById('start');
+  const btn2P = document.getElementById('btn2P');
+  const p2pPanel = document.getElementById('p2pPanel');
+  const iosTip = document.getElementById('iosTip');
+
+  function showStart(text){ startOverlay.style.display='flex'; btnStart.textContent = text || 'Start Game'; }
+  function hideStart(){ startOverlay.style.display='none'; }
+
+  btnStart.addEventListener('click', ()=>{ resize(); startGame(); flap(); });
+  // Allow tapping empty overlay space to start, but not buttons
+  startOverlay.addEventListener('pointerdown', e=>{
+    if(e.target === startOverlay){ e.preventDefault(); resize(); startGame(); flap(); }
+  });
+
+  btn2P.addEventListener('click', ()=>{ p2pPanel.style.display = (p2pPanel.style.display==='block'?'none':'block'); });
+
+  canvas.addEventListener('pointerdown', ()=>{ if(playing) flap(); });
+
+  /* ---------- PWA: manifest + service worker (inline) ---------- */
+  const btnInstall = document.getElementById('btnInstall');
+  // Manifest as data URL
+  const manifest = {
+    name:"Flappy Donut (2P)",
+    short_name:"FlappyDonut",
+    display:"standalone",
+    start_url:".",
+    background_color:"#f6f9ff",
+    theme_color:"#6aa7ff",
+    icons:[
+      { src:"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ccircle cx='50' cy='50' r='44' fill='%23d9a25e'/%3E%3Ccircle cx='50' cy='40' r='35' fill='%23ffffff' opacity='.65'/%3E%3Ccircle cx='50' cy='50' r='16' fill='%23f6f9ff'/%3E%3C/svg%3E", sizes:"192x192", type:"image/svg+xml" }
+    ]
+  };
+  const manifestURL = URL.createObjectURL(new Blob([JSON.stringify(manifest)], {type:'application/json'}));
+  const link = document.createElement('link'); link.rel='manifest'; link.href=manifestURL; document.head.appendChild(link);
+
+  // Service worker (cache-then-network for this page)
+  if('serviceWorker' in navigator){
+    const swCode = `
+      const CACHE='flappy-donut-v1';
+      self.addEventListener('install',e=>{
+        e.waitUntil(caches.open(CACHE).then(c=>c.addAll(['./'])));
+        self.skipWaiting();
+      });
+      self.addEventListener('activate',e=>{ e.waitUntil(self.clients.claim()); });
+      self.addEventListener('fetch',e=>{
+        e.respondWith(
+          caches.match(e.request).then(r=> r || fetch(e.request).then(res=>{
+            const copy=res.clone();
+            caches.open(CACHE).then(c=>c.put(e.request, copy)).catch(()=>{});
+            return res;
+          }))
+        );
+      });
+    `;
+    const swURL = URL.createObjectURL(new Blob([swCode], {type:'text/javascript'}));
+    navigator.serviceWorker.register(swURL).catch(()=>{});
+  }
+
+  // Install prompt (Android/desktop). iOS gets instructions.
+  let deferredPrompt=null;
+  window.addEventListener('beforeinstallprompt', (e)=>{ e.preventDefault(); deferredPrompt=e; btnInstall.disabled=false; });
+  btnInstall.addEventListener('click', async ()=>{
+    if(deferredPrompt){ deferredPrompt.prompt(); deferredPrompt=null; }
+    else { iosTip.style.display='block'; }
+  });
+  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform==='MacIntel' && navigator.maxTouchPoints>1);
+  if(isIOS) iosTip.style.display='block';
+
+  /* ---------- Optional 2P (WebRTC, copy/paste SDP) ---------- */
+  const hostBtn = document.getElementById('host');
+  const joinBtn = document.getElementById('join');
+  const setRemoteBtn = document.getElementById('setRemote');
+  const copyLocalBtn = document.getElementById('copyLocal');
+  const sdpBox = document.getElementById('sdpBox');
+  const peerStateEl = document.getElementById('peerState');
+  const dcStateEl = document.getElementById('dcState');
+
+  let pc=null, dc=null, localDesc=null, ghost=null, lastSend=0;
+  const rtcCfg = { iceServers:[{urls:'stun:stun.l.google.com:19302'}] };
+
+  function newPC(){
+    if(pc){ pc.close(); pc=null; }
+    pc = new RTCPeerConnection(rtcCfg);
+    pc.oniceconnectionstatechange = ()=> peerStateEl.textContent = pc.iceConnectionState;
+    pc.onconnectionstatechange   = ()=> peerStateEl.textContent = pc.connectionState;
+    pc.onicecandidate = ()=>{ if(pc.localDescription){ localDesc = JSON.stringify(pc.localDescription); sdpBox.value = localDesc; } };
+    pc.ondatachannel = e => { dc = e.channel; wireDC(); };
+  }
+  function wireDC(){
+    dc.onopen  = ()=>{ dcStateEl.textContent='open'; };
+    dc.onclose = ()=>{ dcStateEl.textContent='closed'; ghost=null; };
+    dc.onmessage = e=>{
+      try{
+        const m = JSON.parse(e.data);
+        if(m.type==='state'){ ghost = m.payload; }
+      }catch{}
+    };
+  }
+
+  async function waitIce(){
+    return new Promise(res=>{
+      if(pc.iceGatheringState==='complete') return res();
+      pc.onicegatheringstatechange = ()=>{ if(pc.iceGatheringState==='complete') res(); };
+      setTimeout(res,1500);
+    });
+  }
+
+  hostBtn.addEventListener('click', async ()=>{
+    newPC();
+    dc = pc.createDataChannel('game'); wireDC();
+    const offer = await pc.createOffer(); await pc.setLocalDescription(offer);
+    await waitIce(); sdpBox.value = JSON.stringify(pc.localDescription);
+  });
+
+  joinBtn.addEventListener('click', async ()=>{
+    const offerText = prompt('Paste host offer JSON:') || '';
+    try{
+      newPC();
+      await pc.setRemoteDescription(JSON.parse(offerText));
+      const ans = await pc.createAnswer(); await pc.setLocalDescription(ans);
+      await waitIce(); sdpBox.value = JSON.stringify(pc.localDescription);
+    }catch(err){ alert('Invalid offer JSON'); console.error(err); }
+  });
+
+  setRemoteBtn.addEventListener('click', async ()=>{
+    try{ await pc.setRemoteDescription(JSON.parse(sdpBox.value.trim())); }
+    catch(err){ alert('Invalid remote SDP JSON'); console.error(err); }
+  });
+
+  copyLocalBtn.addEventListener('click', async ()=>{
+    try{ await navigator.clipboard.writeText(sdpBox.value); alert('Copied'); }
+    catch{ prompt('Copy this:', sdpBox.value); }
+  });
+
+  function sendState(){
+    if(!dc || dc.readyState!=='open') return;
+    const t=performance.now(); if (t-lastSend<50) return; lastSend=t;
+    try{ dc.send(JSON.stringify({type:'state', payload:{x:DONUT.x, y:DONUT.y, r:DONUT.r, score, playing}})); }catch{}
+  }
+
+  function drawGhost(){
+    if(!ghost) return;
+    ctx.save();
+    ctx.globalAlpha = 0.65;
+    ctx.strokeStyle = '#4c88ff';
+    ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.arc(ghost.x, ghost.y, ghost.r||20, 0, Math.PI*2); ctx.stroke();
+    ctx.globalAlpha = 1;
+    ctx.restore();
+  }
+
+  /* ---------- Boot ---------- */
+  function showStart(text){ startOverlay.style.display='flex'; btnStart.textContent = text || 'Start Game'; }
+  function hideStart(){ startOverlay.style.display='none'; }
+
+  // Initial overlay and loop
+  showStart('Start Game');
+  requestAnimationFrame(function frame(t){ const dt=(t-last)||16; last=t; update(dt); draw(); requestAnimationFrame(frame); });
+})();
+</script>
+</body>
+</html>
